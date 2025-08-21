@@ -3,7 +3,6 @@ import type { AuthRequest, OAuthHelpers } from '@cloudflare/workers-oauth-provid
 import { Hono } from 'hono'
 import { githubAuth } from '@hono/oauth-providers/github'
 import { clientIdAlreadyApproved, parseRedirectApproval, renderApprovalDialog } from './workers-oauth-utils'
-import { createMiddleware } from 'hono/factory'
 
 const app = new Hono<{
 	Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers }
@@ -19,7 +18,7 @@ app.get('/authorize', async (c) => {
 		return c.text('Invalid request', 400)
 	}
 
-	if (await clientIdAlreadyApproved(c.req.raw, oauthReqInfo.clientId, env.COOKIE_ENCRYPTION_KEY)) {
+	if (await clientIdAlreadyApproved(c.req.raw, oauthReqInfo.clientId, c.env.COOKIE_ENCRYPTION_KEY)) {
 		return c.redirect(`/callback?state=${btoa(JSON.stringify(oauthReqInfo))}`)
 	}
 
@@ -34,18 +33,16 @@ app.get('/authorize', async (c) => {
 	})
 })
 
-const githubAuthMiddleware = (state?: string) =>
-	createMiddleware(async (c, next) => {
-		return await githubAuth({
+const githubAuthMiddleware = (state?: string) =>  githubAuth({
 			// `state` option is not available in the current OAuth Provider Middleware.
 			// You should patch it.
 			state,
-			client_id: c.env.GITHUB_CLIENT_ID,
-			client_secret: c.env.GITHUB_CLIENT_SECRET,
+			client_id: env.GITHUB_CLIENT_ID,
+			client_secret: env.GITHUB_CLIENT_SECRET,
 			scope: ['read:user', 'user:email'],
 			oauthApp: true
-		})(c, next)
-	})
+})
+
 
 app.post('/authorize', async (c, next) => {
 	const { state } = await parseRedirectApproval(c.req.raw, c.env.COOKIE_ENCRYPTION_KEY)
